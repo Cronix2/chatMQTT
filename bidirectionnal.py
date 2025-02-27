@@ -9,7 +9,7 @@ TOPIC_RECEIVE = "iot/chat"  # On écoute et envoie sur le même topic
 # Demander un pseudo pour identifier les messages
 username = input("Entrez votre pseudo : ")
 
-def on_connect(client, userdata, flags, rc):
+def on_connect(client, userdata, flags, rc, properties=None):
     """Gère la connexion au broker MQTT."""
     if rc == 0:
         print("✅ Connecté au broker MQTT !")
