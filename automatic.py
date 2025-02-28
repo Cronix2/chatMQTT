@@ -5,20 +5,20 @@ from datetime import datetime, timedelta
 
 # Configuration
 BROKER = "20.107.241.46"  # IP de la VM Azure
-TOPIC = "iot/healthcheck"  # Topic unique
+TOPIC = "iot/healthcheck"
 TIMEOUT = 90  # Temps max avant alerte
-
 last_received_time = None
-last_received_message = None  # Stocke le dernier message reçu
+last_received_message = None
+last_sent_minute = None  # Pour éviter les envois multiples
 
-# Déterminer si l'on est IoT ou VM
+# Déterminer si on est IoT ou VM
 role = input("Entrez votre rôle (iot/vm) : ").strip().lower()
 if role not in ["iot", "vm"]:
     print("Rôle invalide. Utilisez 'iot' ou 'vm'.")
     exit()
 
 def sync_timezone():
-    """Forcer la synchronisation du fuseau horaire sur UTC pour éviter les écarts."""
+    """Synchronise l'heure sur UTC pour éviter les écarts."""
     import os
     os.system("sudo timedatectl set-timezone UTC")
 
@@ -51,29 +51,34 @@ client.connect(BROKER, 1883, 60)
 # Lancer le listener MQTT en arrière-plan
 threading.Thread(target=client.loop_forever, daemon=True).start()
 
-# Boucle principale pour gérer les messages toutes les minutes
+# Boucle principale
 while True:
-    now = datetime.utcnow()  # Utiliser UTC pour éviter les écarts de fuseau
+    now = datetime.utcnow()
     minute = now.minute
 
-    # Vérifier si l'autre machine a bien envoyé son dernier message avant d'envoyer le sien
+    # Vérifier si on a déjà envoyé un message cette minute
+    if last_sent_minute == minute:
+        time.sleep(10)
+        continue
+
+    # Vérifier que l'on a bien reçu un message avant d'envoyer le suivant
     if last_received_message:
-        expected_sender = "iot" if role == "vm" else "vm"  # L'expéditeur attendu
+        expected_sender = "iot" if role == "vm" else "vm"
         if expected_sender not in last_received_message:
             print(f"🚨 [{role.upper()}] Problème détecté : Dernier message reçu non conforme.")
             break
 
+    # IoT envoie aux minutes impaires, VM aux minutes paires
     if (role == "iot" and minute % 2 == 1) or (role == "vm" and minute % 2 == 0):  
-        # Création du message avec l'identité
         if role == "iot":
             msg = f"[from: iot] [{now.strftime('%d/%m/%Y %H:%M')}]"
         else:  # VM
             next_minute = (now + timedelta(minutes=1)).strftime('%d/%m/%Y %H:%M')
             msg = f"[from: vm] [{now.strftime('%d/%m/%Y %H:%M')}] : OK / [{next_minute}]"
 
-        # Envoi du message
         client.publish(TOPIC, msg)
         print(f"📤 {msg}")
+        last_sent_minute = minute  # Mémoriser la dernière minute d'envoi
 
     # Vérification si un message est manquant
     if last_received_time:
@@ -82,5 +87,5 @@ while True:
             print(f"🚨 [{role.upper()}] Problème détecté à {now.strftime('%d/%m/%Y %H:%M')} ! Communication arrêtée.")
             break
 
-    # Attendre 10 secondes avant de revérifier
+    # Attente de 10 secondes avant de vérifier à nouveau
     time.sleep(10)
