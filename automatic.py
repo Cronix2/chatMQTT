@@ -49,6 +49,28 @@ client.connect(BROKER, 1883, 60)
 # Lancer le listener MQTT en arrière-plan
 threading.Thread(target=client.loop_forever, daemon=True).start()
 
+print(f"🚀 [{role.upper()}] Démarrage du script...")
+if role == "iot":
+    print("🔵 IoT envoie aux minutes impaires.")
+else:
+    print("🔴 VM envoie aux minutes paires.")
+
+if role == "iot" and datetime.now().minute % 2 == 0:
+    print("⚠️ [IoT] Minute actuelle paire, attendez la prochaine minute impaire pour envoyer.")
+    while datetime.now().minute % 2 == 0:
+        time.sleep(1)
+elif role == "iot" and datetime.now().minute % 2 == 1:
+    print("⚠️ [IoT] Minute actuelle impaire, attendez la prochaine minute impaire pour envoyer.")
+    time.sleep(60)
+    while datetime.now().minute % 2 == 0:
+        time.sleep(1)
+elif role == "vm":
+    # Attendre le premier message de l'IoT
+    while not last_received_message:
+        time.sleep(1)
+
+boucle = 0
+
 # Boucle principale
 while True:
     now = datetime.now(timezone.utc)
@@ -56,8 +78,12 @@ while True:
 
     # Vérifier si on a déjà envoyé un message cette minute
     if last_sent_minute == minute:
-        time.sleep(10)
+        time.sleep(1)
         continue
+
+    if role == "iot" and minute % 2 == 1 and boucle == 0:
+        msg = f"[from: iot] [{now.strftime('%d/%m/%Y %H:%M')}]"
+        client.publish(TOPIC, msg)
 
     # Vérifier qu'on a bien reçu le message de l'autre machine avant d'envoyer
     expected_sender = "iot" if role == "vm" else "vm"
@@ -72,17 +98,18 @@ while True:
             elapsed_time = time.time() - last_received_time
             if elapsed_time < 30:  # S'assurer d'avoir bien reçu le message avant d'envoyer le sien
                 print(f"⏳ [{role.upper()}] En attente de confirmation de l'autre machine...")
-                time.sleep(10)
+                time.sleep(1)
                 continue
 
         if role == "iot":
-            msg = f"[from: iot] [{now.strftime('%d/%m/%Y %H:%M')}]"
+            prev_minute = (now - timedelta(minutes=1)).strftime('%d/%m/%Y %H:%M')
+            msg = f"[from: iot] [{prev_minute}] : OK / [{now.strftime('%d/%m/%Y %H:%M')}]"
         else:  # VM
-            next_minute = (now + timedelta(minutes=1)).strftime('%d/%m/%Y %H:%M')
-            msg = f"[from: vm] [{now.strftime('%d/%m/%Y %H:%M')}] : OK / [{next_minute}]"
+            prev_minute = (now - timedelta(minutes=1)).strftime('%d/%m/%Y %H:%M')
+            msg = f"[from: vm] [{prev_minute}] : OK / [{now.strftime('%d/%m/%Y %H:%M')}]"
 
         client.publish(TOPIC, msg)
-        print(f"📤 {msg}")
+        # * print(f"📤 {msg}")
         last_sent_minute = minute  # Mémoriser la dernière minute d'envoi
 
     # Vérification si un message est manquant
@@ -91,6 +118,7 @@ while True:
         if elapsed_time > TIMEOUT:
             print(f"🚨 [{role.upper()}] Problème détecté à {now.strftime('%d/%m/%Y %H:%M')} ! Communication arrêtée.")
             break
-
-    # Attente de 10 secondes avant de vérifier à nouveau
-    time.sleep(10)
+    
+    # Attente de 1 seconde avant de vérifier à nouveau
+    boucle += 1
+    time.sleep(1)
