@@ -20,7 +20,7 @@ if role not in ["iot", "vm"]:
 def on_connect(client, userdata, flags, rc, properties=None):
     """Gère la connexion au broker MQTT."""
     if rc == 0:
-        print(f"✅ [{role.upper()}] Connecté au broker MQTT !")
+        print(f"✅ [{role.upper()}] Connecté au broker MQTT !\n\n")
         client.subscribe(TOPIC)
     else:
         print(f"⚠️ [{role.upper()}] Erreur de connexion, code {rc}")
@@ -38,7 +38,7 @@ def on_message(client, userdata, msg):
     last_received_time = time.time()
     last_received_message = received_msg
 
-    print(f"\n📩 {received_msg}")
+    print(f"📩 {received_msg}")
 
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 client.on_connect = on_connect
@@ -89,7 +89,7 @@ while True:
     expected_sender = "iot" if role == "vm" else "vm"
     if last_received_message:
         if expected_sender not in last_received_message:
-            print(f"🚨 [{role.upper()}] Problème détecté : Dernier message reçu non conforme.")
+            print(f"\n🚨 [{role.upper()}] Problème détecté : Dernier message reçu non conforme.")
             break
 
     # IoT envoie aux minutes impaires, VM aux minutes paires
@@ -113,11 +113,11 @@ while True:
         last_sent_minute = minute  # Mémoriser la dernière minute d'envoi
 
     # Vérification si un message est manquant
-    if last_received_time:
-        elapsed_time = time.time() - last_received_time
-        if elapsed_time > TIMEOUT:
-            print(f"🚨 [{role.upper()}] Problème détecté à {now.strftime('%d/%m/%Y %H:%M')} ! Communication arrêtée.")
-            break
+    # if last_received_time:
+    #     elapsed_time = time.time() - last_received_time
+    #     if elapsed_time > TIMEOUT:
+    #         print(f"\n🚨 [{role.upper()}] Problème détecté à {now.strftime('%d/%m/%Y %H:%M')} ! Communication arrêtée.")
+    #         break
     
     # Attente de 1 seconde avant de vérifier à nouveau
     boucle += 1
