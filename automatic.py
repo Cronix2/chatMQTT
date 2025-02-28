@@ -51,7 +51,7 @@ threading.Thread(target=client.loop_forever, daemon=True).start()
 
 # Boucle principale
 while True:
-    now = datetime.now(timezone.utc)  # Utiliser un datetime UTC valide
+    now = datetime.now(timezone.utc)
     minute = now.minute
 
     # Vérifier si on a déjà envoyé un message cette minute
@@ -59,14 +59,22 @@ while True:
         time.sleep(10)
         continue
 
-    # Vérifier qu'on a bien reçu un message de l'autre machine avant d'envoyer le sien
+    # Vérifier qu'on a bien reçu le message de l'autre machine avant d'envoyer
     expected_sender = "iot" if role == "vm" else "vm"
-    if last_received_message and expected_sender not in last_received_message:
-        print(f"🚨 [{role.upper()}] Problème détecté : Dernier message reçu non conforme.")
-        break
+    if last_received_message:
+        if expected_sender not in last_received_message:
+            print(f"🚨 [{role.upper()}] Problème détecté : Dernier message reçu non conforme.")
+            break
 
     # IoT envoie aux minutes impaires, VM aux minutes paires
     if (role == "iot" and minute % 2 == 1) or (role == "vm" and minute % 2 == 0):
+        if last_received_time:
+            elapsed_time = time.time() - last_received_time
+            if elapsed_time < 30:  # S'assurer d'avoir bien reçu le message avant d'envoyer le sien
+                print(f"⏳ [{role.upper()}] En attente de confirmation de l'autre machine...")
+                time.sleep(10)
+                continue
+
         if role == "iot":
             msg = f"[from: iot] [{now.strftime('%d/%m/%Y %H:%M')}]"
         else:  # VM
