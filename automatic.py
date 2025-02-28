@@ -111,11 +111,12 @@ while True:
 
         client.publish(TOPIC, msg)
         print(f"📤 {msg}")
+        received_messages.append(msg)
         last_sent_minute = minute  # Mémoriser la dernière minute d'envoi
 
     # Vérification si un message est manquant
-    # si on reçoit deux messages consécutifs de l'autre machine
-    if len(received_messages) >= 2 and received_messages[-1].count(expected_sender) == 1 and received_messages[-2].count(expected_sender) == 1:
+    # si on envoie deux messages consécutifs sans réponse de l'autre machine
+    if len(received_messages) > 2 and received_messages[-1] != received_messages[-2]:
         print(f"\n🚨 [{role.upper()}] Problème détecté : Message manquant.")
         break
 
