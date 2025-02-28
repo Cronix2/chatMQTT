@@ -123,8 +123,11 @@ while True:
     # si on envoie deux messages consécutifs sans réponse de l'autre machine
     if len(received_messages) > 2 and received_messages[-1] == received_messages[-2]:
         print(f"\n🚨 [{role.upper()}] Problème détecté : Message manquant.")
-        print(received_messages)
         break
+
+    if len(received_messages)>5:
+        # Si on a reçu plus de 5 messages, on supprime les plus anciens
+        received_messages.pop(0)
 
     # Attente de 1 seconde avant de vérifier à nouveau
     boucle += 1
