@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 # Configuration
 BROKER = "20.107.241.46"  # IP de la VM Azure
 TOPIC = "iot/healthcheck"
-TIMEOUT = 90  # Temps max avant alerte
+TIMEOUT = 120  # Temps max avant alerte
 last_received_time = None
 last_received_message = None
 last_sent_minute = None  # Pour éviter les envois multiples
@@ -109,7 +109,7 @@ while True:
             msg = f"[from: vm] [{prev_minute}] : OK / [{now.strftime('%d/%m/%Y %H:%M')}]"
 
         client.publish(TOPIC, msg)
-        # * print(f"📤 {msg}")
+        print(f"📤 {msg}")
         last_sent_minute = minute  # Mémoriser la dernière minute d'envoi
 
     # Vérification si un message est manquant
