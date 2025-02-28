@@ -113,12 +113,11 @@ while True:
         last_sent_minute = minute  # Mémoriser la dernière minute d'envoi
 
     # Vérification si un message est manquant
-    # if last_received_time:
-    #     elapsed_time = time.time() - last_received_time
-    #     if elapsed_time > TIMEOUT:
-    #         print(f"\n🚨 [{role.upper()}] Problème détecté à {now.strftime('%d/%m/%Y %H:%M')} ! Communication arrêtée.")
-    #         break
-    
+    # si on reçoit deux messages consécutifs de l'autre machine
+    if last_received_message and last_received_message.count(expected_sender) == 2:
+        print(f"\n🚨 [{role.upper()}] Problème détecté : Message manquant.")
+        break
+
     # Attente de 1 seconde avant de vérifier à nouveau
     boucle += 1
     time.sleep(1)
