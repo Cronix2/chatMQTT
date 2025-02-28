@@ -1,7 +1,7 @@
 import paho.mqtt.client as mqtt
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Configuration
 BROKER = "20.107.241.46"  # IP de la VM Azure
@@ -17,13 +17,6 @@ if role not in ["iot", "vm"]:
     print("Rôle invalide. Utilisez 'iot' ou 'vm'.")
     exit()
 
-def sync_timezone():
-    """Synchronise l'heure sur UTC pour éviter les écarts."""
-    import os
-    os.system("sudo timedatectl set-timezone UTC")
-
-sync_timezone()
-
 def on_connect(client, userdata, flags, rc, properties=None):
     """Gère la connexion au broker MQTT."""
     if rc == 0:
@@ -37,6 +30,11 @@ def on_message(client, userdata, msg):
     global last_received_time, last_received_message
 
     received_msg = msg.payload.decode()
+
+    # Ignorer les messages envoyés par soi-même
+    if f"[from: {role}]" in received_msg:
+        return
+
     last_received_time = time.time()
     last_received_message = received_msg
 
@@ -53,7 +51,7 @@ threading.Thread(target=client.loop_forever, daemon=True).start()
 
 # Boucle principale
 while True:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)  # Utiliser un datetime UTC valide
     minute = now.minute
 
     # Vérifier si on a déjà envoyé un message cette minute
@@ -61,15 +59,14 @@ while True:
         time.sleep(10)
         continue
 
-    # Vérifier que l'on a bien reçu un message avant d'envoyer le suivant
-    if last_received_message:
-        expected_sender = "iot" if role == "vm" else "vm"
-        if expected_sender not in last_received_message:
-            print(f"🚨 [{role.upper()}] Problème détecté : Dernier message reçu non conforme.")
-            break
+    # Vérifier qu'on a bien reçu un message de l'autre machine avant d'envoyer le sien
+    expected_sender = "iot" if role == "vm" else "vm"
+    if last_received_message and expected_sender not in last_received_message:
+        print(f"🚨 [{role.upper()}] Problème détecté : Dernier message reçu non conforme.")
+        break
 
     # IoT envoie aux minutes impaires, VM aux minutes paires
-    if (role == "iot" and minute % 2 == 1) or (role == "vm" and minute % 2 == 0):  
+    if (role == "iot" and minute % 2 == 1) or (role == "vm" and minute % 2 == 0):
         if role == "iot":
             msg = f"[from: iot] [{now.strftime('%d/%m/%Y %H:%M')}]"
         else:  # VM
