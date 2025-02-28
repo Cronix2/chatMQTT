@@ -118,6 +118,7 @@ while True:
     # si on envoie deux messages consécutifs sans réponse de l'autre machine
     if len(received_messages) > 2 and received_messages[-1] != received_messages[-2]:
         print(f"\n🚨 [{role.upper()}] Problème détecté : Message manquant.")
+        print(received_messages)
         break
 
     # Attente de 1 seconde avant de vérifier à nouveau
