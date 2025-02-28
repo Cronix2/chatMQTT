@@ -25,6 +25,11 @@ def on_connect(client, userdata, flags, rc, properties=None):
     else:
         print(f"⚠️ [{role.upper()}] Erreur de connexion, code {rc}")
 
+def obtain_sender(msg):
+    """Obtenir l'expéditeur du message."""
+    return "iot" if "[from: iot]" in msg else "vm"
+
+
 def on_message(client, userdata, msg):
     """Gère la réception des messages."""
     global last_received_time, last_received_message
@@ -37,7 +42,7 @@ def on_message(client, userdata, msg):
 
     last_received_time = time.time()
     last_received_message = received_msg
-    received_messages.append(received_msg)
+    received_messages.append(obtain_sender(received_msg))
 
     print(f"📩 {received_msg}")
 
@@ -111,12 +116,12 @@ while True:
 
         client.publish(TOPIC, msg)
         print(f"📤 {msg}")
-        received_messages.append(msg)
+        received_messages.append(obtain_sender(msg))
         last_sent_minute = minute  # Mémoriser la dernière minute d'envoi
 
     # Vérification si un message est manquant
     # si on envoie deux messages consécutifs sans réponse de l'autre machine
-    if len(received_messages) > 2 and received_messages[-1] != received_messages[-2]:
+    if len(received_messages) > 2 and received_messages[-1] == received_messages[-2]:
         print(f"\n🚨 [{role.upper()}] Problème détecté : Message manquant.")
         print(received_messages)
         break
