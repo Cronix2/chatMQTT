@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 # Configuration
 BROKER = "20.107.241.46"  # IP de la VM Azure
 TOPIC = "iot/healthcheck"
-TIMEOUT = 120  # Temps max avant alerte
+received_messages = []
 last_received_time = None
 last_received_message = None
 last_sent_minute = None  # Pour éviter les envois multiples
@@ -37,6 +37,7 @@ def on_message(client, userdata, msg):
 
     last_received_time = time.time()
     last_received_message = received_msg
+    received_messages.append(received_msg)
 
     print(f"📩 {received_msg}")
 
@@ -114,7 +115,7 @@ while True:
 
     # Vérification si un message est manquant
     # si on reçoit deux messages consécutifs de l'autre machine
-    if last_received_message and last_received_message.count(expected_sender) == 2:
+    if len(received_messages) >= 2 and received_messages[-1].count(expected_sender) == 1 and received_messages[-2].count(expected_sender) == 1:
         print(f"\n🚨 [{role.upper()}] Problème détecté : Message manquant.")
         break
 
