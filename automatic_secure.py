@@ -7,7 +7,7 @@ import requests
 from dotenv import load_dotenv
 
 # Configuration
-BROKER = "20.107.241.46"  # IP de la VM Azure
+BROKER = "mqtt-test.northeurope.cloudapp.azure.com"  # FQDN de la VM Azure
 TOPIC = "iot/healthcheck"
 received_messages = []
 last_received_time = None
@@ -15,7 +15,7 @@ last_received_message = None
 last_sent_minute = None  # Pour éviter les envois multiples
 load_dotenv()
 DiscordWebhook = os.getenv("WEBHOOK")
-PORT = os.getenv("PORT")
+PORT = int(os.getenv("PORT"))
 USERNAME = os.getenv("USERNAME")
 PASSWORD = os.getenv("PASSWORD")
 CERT_PATH = os.getenv("CERT_PATH")
