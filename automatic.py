@@ -2,6 +2,9 @@ import paho.mqtt.client as mqtt
 import threading
 import time
 from datetime import datetime, timedelta, timezone
+import os
+import requests
+from dotenv import load_dotenv
 
 # Configuration
 BROKER = "20.107.241.46"  # IP de la VM Azure
@@ -10,12 +13,34 @@ received_messages = []
 last_received_time = None
 last_received_message = None
 last_sent_minute = None  # Pour éviter les envois multiples
+load_dotenv()
+DiscordWebhook = os.getenv("WEBHOOK")
+
 
 # Déterminer si on est IoT ou VM
 role = input("Entrez votre rôle (iot/vm) : ").strip().lower()
 if role not in ["iot", "vm"]:
     print("Rôle invalide. Utilisez 'iot' ou 'vm'.")
     exit()
+
+def send_discord_alert(message):
+    """Envoie une alerte sur un canal Discord via un webhook."""
+    if not DiscordWebhook:
+        print("⚠️ Erreur : Webhook Discord non défini dans le fichier .env")
+        return
+
+    data = {"content": message, "username": "MQTT Healthchecker"}
+
+    response = requests.post(DiscordWebhook, json=data)
+
+    if response.status_code == 204:
+        print("✅ Alerte envoyée sur Discord avec succès !")
+    else:
+        print(f"⚠️ Erreur lors de l'envoi sur Discord : {response.status_code} - {response.text}")
+
+def log_message(message):
+    with open("mqtt_healthcheck.log", "a") as log_file:
+        log_file.write(f"{datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M:%S')} - {message}\n")
 
 def on_connect(client, userdata, flags, rc, properties=None):
     """Gère la connexion au broker MQTT."""
@@ -45,6 +70,8 @@ def on_message(client, userdata, msg):
     received_messages.append(obtain_sender(received_msg))
 
     print(f"📩 {received_msg}")
+    log_message(f"RECEIVED: {received_msg}")
+
 
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 client.on_connect = on_connect
@@ -116,13 +143,17 @@ while True:
 
         client.publish(TOPIC, msg)
         print(f"📤 {msg}")
+        log_message(f"SENT: {msg}")
         received_messages.append(obtain_sender(msg))
         last_sent_minute = minute  # Mémoriser la dernière minute d'envoi
 
     # Vérification si un message est manquant
     # si on envoie deux messages consécutifs sans réponse de l'autre machine
     if len(received_messages) > 2 and received_messages[-1] == received_messages[-2]:
-        print(f"\n🚨 [{role.upper()}] Problème détecté : Message manquant.")
+        alert_message = f"🚨 **[{role.upper()}] Problème détecté !**\n📅 {datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M:%S UTC')}\n❌ Message non reçu."
+        print(alert_message)
+        send_discord_alert(alert_message)
+        log_message(f"ERROR: Message manquant.")
         break
 
     if len(received_messages)>5:
