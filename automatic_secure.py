@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import os
 import requests
 from dotenv import load_dotenv
+import ssl
 
 # Configuration
 BROKER = "mqtt-test.northeurope.cloudapp.azure.com"  # FQDN de la VM Azure
@@ -79,7 +80,7 @@ def on_message(client, userdata, msg):
 
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 client.username_pw_set(USERNAME, PASSWORD)
-client.tls_set(CERT_PATH)
+client.tls_set(ca_certs=CERT_PATH, tls_version=ssl.PROTOCOL_TLS)
 client.on_connect = on_connect
 client.on_message = on_message
 
