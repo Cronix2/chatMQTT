@@ -154,6 +154,15 @@ while True:
     now = datetime.now(timezone.utc)
     minute = now.minute
 
+    # Si la vm reçoit un message de l'IoT, elle doit répondre
+    if role == "vm":
+        last_received_message = coap_get()
+        if last_received_message and "iot" in last_received_message:
+            now = datetime.now(timezone.utc)
+            msg = f"[from: vm] [{now.strftime('%d/%m/%Y %H:%M')}]"
+            coap_post(msg)
+            print(f"📤 [VM] Réponse envoyée : {msg}")
+
     # Vérifier si on a déjà envoyé un message cette minute
     if last_sent_minute == minute:
         time.sleep(1)
@@ -164,7 +173,7 @@ while True:
         coap_post(msg)
     
     last_received_message = coap_get()
-        expected_sender = "iot" if role == "vm" else "vm"
+    expected_sender = "iot" if role == "vm" else "vm"
     print(f"🔹 [DEBUG] Message attendu contenant : '{expected_sender}', Message reçu : '{last_received_message}'")
     if last_received_message and expected_sender not in last_received_message:
         print(f"\n🚨 [{role.upper()}] Problème détecté : Dernier message reçu non conforme.")
