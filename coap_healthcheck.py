@@ -10,7 +10,8 @@ from aiocoap import *
 import logging
 
 # Configurer les variables globales
-global error = 0
+global error
+error = 0
 
 # Configurer les logs
 logging.basicConfig(level=logging.INFO)
