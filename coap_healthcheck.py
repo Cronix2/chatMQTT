@@ -6,6 +6,9 @@ import requests
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 
+# Charger les variables globales
+global error = 0
+
 # Charger les variables d'environnement
 load_dotenv()
 DiscordWebhook = os.getenv("WEBHOOK")
@@ -58,8 +61,8 @@ def log_message(message):
         log_file.write(f"{datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M:%S')} - {message}\n")
 
 def coap_get():
+    global error
     """Effectue une requête GET sur le serveur CoAP."""
-    error = 0
     try:
         cmd = ["coap-client", "-m", "get", f"{COAP_SERVER}/{RESOURCE}"]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
@@ -160,6 +163,7 @@ while True:
 
         coap_post(msg)
         print(f"📤 {msg}")
+        error = 0
         log_message(f"SENT: {msg}")
         received_messages.append(msg)
         last_sent_minute = minute
