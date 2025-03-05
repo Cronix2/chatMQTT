@@ -3,11 +3,17 @@ import threading
 import time
 import os
 import requests
+import asyncio
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
+from aiocoap import *
+import logging
 
-# Charger les variables globales
+# Configurer les variables globales
 global error = 0
+
+# Configurer les logs
+logging.basicConfig(level=logging.INFO)
 
 # Charger les variables d'environnement
 load_dotenv()
@@ -20,6 +26,7 @@ received_messages = []
 last_received_time = None
 last_received_message = None
 last_sent_minute = None  # Éviter les envois multiples
+error = 0
 
 # Déterminer si on est IoT ou VM
 role = input("Entrez votre rôle (iot/vm) : ").strip().lower()
@@ -27,42 +34,57 @@ if role not in ["iot", "vm"]:
     print("Rôle invalide. Utilisez 'iot' ou 'vm'.")
     exit()
 
+class HealthCheckResource(resource.Resource):
+    """Ressource CoAP pour gérer les requêtes GET et POST sur /healthcheck"""
+    
+    def __init__(self):
+        super().__init__()
+        self.latest_message = "Aucun message reçu"
+
+    async def render_get(self, request):
+        print("📥 [GET] Reçu - Dernier message :", self.latest_message)
+        return Message(payload=self.latest_message.encode('utf-8'))
+
+    async def render_post(self, request):
+        self.latest_message = request.payload.decode('utf-8')
+        print(f"📩 [POST] Nouveau message reçu : {self.latest_message}")
+        return Message(payload=b"Message enregistré")
+
+async def run_coap_server():
+    """Lancer le serveur CoAP"""
+    root = resource.Site()
+    root.add_resource([RESOURCE], HealthCheckResource())
+    await Context.create_server_context(root, bind=('::', 5683))
+    print("✅ Serveur CoAP en écoute sur le port 5683...")
+    await asyncio.get_running_loop().create_future()
+
 def start_coap_server():
-    """Démarre le serveur CoAP en arrière-plan si le rôle est 'vm'."""
-    try:
+    """Démarrer le serveur CoAP en arrière-plan si le rôle est 'vm'"""
+    if role == "vm":
         print("🟢 [VM] Démarrage du serveur CoAP...")
-        server_process = subprocess.Popen(["coap-server", "-v", "7"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        for line in server_process.stdout:
-            print(f"🔹 {line.decode().strip()}")
-    except Exception as e:
-        print(f"⚠️ Erreur lors du lancement du serveur CoAP : {e}")
+        threading.Thread(target=lambda: asyncio.run(run_coap_server()), daemon=True).start()
 
 if role == "vm":
-    # Lancer le serveur CoAP dans un thread séparé
-    threading.Thread(target=start_coap_server, daemon=True).start()
+    start_coap_server()
 
 def send_discord_alert(message):
     """Envoie une alerte sur un canal Discord via un webhook."""
     if not DiscordWebhook:
         print("⚠️ Webhook Discord non défini dans le fichier .env")
         return
+    
 
     data = {"content": message, "username": "CoAP Healthchecker"}
     response = requests.post(DiscordWebhook, json=data)
-
+    
     if response.status_code == 204:
         print("✅ Alerte envoyée sur Discord avec succès !")
     else:
         print(f"⚠️ Erreur lors de l'envoi sur Discord : {response.status_code} - {response.text}")
 
-def log_message(message):
-    """Enregistre les logs."""
-    with open("coap_healthcheck.log", "a") as log_file:
-        log_file.write(f"{datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M:%S')} - {message}\n")
-
 def coap_get():
-    global error
     """Effectue une requête GET sur le serveur CoAP."""
+    global error
     try:
         cmd = ["coap-client", "-m", "get", f"{COAP_SERVER}/{RESOURCE}"]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
@@ -131,55 +153,24 @@ while True:
     if last_sent_minute == minute:
         time.sleep(1)
         continue
-
-    # IoT envoie aux minutes impaires
-    if role == "iot" and minute % 2 == 1 and boucle == 0:
+    
+    if role == "iot" and minute % 2 == 1:
         msg = f"[from: iot] [{now.strftime('%d/%m/%Y %H:%M')}]"
         coap_post(msg)
-
-    # Vérifier qu'on a bien reçu le message de l'autre machine avant d'envoyer
-    expected_sender = "iot" if role == "vm" else "vm"
+    
     last_received_message = coap_get()
+    expected_sender = "iot" if role == "vm" else "vm"
     if last_received_message and expected_sender not in last_received_message:
         print(f"\n🚨 [{role.upper()}] Problème détecté : Dernier message reçu non conforme.")
         send_discord_alert(f"🚨 **[{role.upper()}] Problème détecté !**\n📅 {now.strftime('%d/%m/%Y %H:%M:%S UTC')}\n❌ Message non reçu.")
         break
-
-    # IoT envoie aux minutes impaires, VM aux minutes paires
+    
     if (role == "iot" and minute % 2 == 1) or (role == "vm" and minute % 2 == 0):
-        if last_received_time:
-            elapsed_time = time.time() - last_received_time
-            if elapsed_time < 30:
-                print(f"⏳ [{role.upper()}] En attente de confirmation de l'autre machine...")
-                time.sleep(1)
-                continue
-
-        if role == "iot":
-            prev_minute = (now - timedelta(minutes=1)).strftime('%d/%m/%Y %H:%M')
-            msg = f"[from: iot] [{prev_minute}] : OK / [{now.strftime('%d/%m/%Y %H:%M')}]"
-        else:
-            prev_minute = (now - timedelta(minutes=1)).strftime('%d/%m/%Y %H:%M')
-            msg = f"[from: vm] [{prev_minute}] : OK / [{now.strftime('%d/%m/%Y %H:%M')}]"
-
+        prev_minute = (now - timedelta(minutes=1)).strftime('%d/%m/%Y %H:%M')
+        msg = f"[from: {role}] [{prev_minute}] : OK / [{now.strftime('%d/%m/%Y %H:%M')}]"
         coap_post(msg)
         print(f"📤 {msg}")
         error = 0
-        log_message(f"SENT: {msg}")
-        received_messages.append(msg)
         last_sent_minute = minute
-
-    # Vérification de l'absence de réponse
-    if len(received_messages) > 2 and received_messages[-1] == received_messages[-2]:
-        alert_message = f"🚨 **[{role.upper()}] Problème détecté !**\n📅 {now.strftime('%d/%m/%Y %H:%M:%S UTC')}\n❌ Message non reçu."
-        print(alert_message)
-        send_discord_alert(alert_message)
-        log_message(f"ERROR: Message manquant.")
-        break
-
-    # Limitation des logs
-    if len(received_messages) > 5:
-        received_messages.pop(0)
-
-    # Pause avant la prochaine itération
-    boucle += 1
+    
     time.sleep(1)
