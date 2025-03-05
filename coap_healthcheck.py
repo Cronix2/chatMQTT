@@ -43,13 +43,15 @@ class HealthCheckResource(resource.Resource):
         self.latest_message = "Aucun message reçu"
 
     async def render_get(self, request):
-        print("📥 [GET] Reçu - Dernier message :", self.latest_message)
+        """Gérer les requêtes GET"""
+        print(f"📥 [GET] Reçu - Dernier message stocké : {self.latest_message}")
         return Message(payload=self.latest_message.encode('utf-8'))
 
     async def render_post(self, request):
+        """Gérer les requêtes POST"""
         self.latest_message = request.payload.decode('utf-8')
-        print(f"📩 [POST] Nouveau message reçu : {self.latest_message}")
-        return Message(payload=b"Message enregistre")
+        print(f"📩 [POST] Nouveau message reçu et enregistré : {self.latest_message}")
+        return Message(payload=b"Message enregistré")
 
 async def run_coap_server():
     """Lancer le serveur CoAP"""
@@ -162,8 +164,8 @@ while True:
         coap_post(msg)
     
     last_received_message = coap_get()
+        expected_sender = "iot" if role == "vm" else "vm"
     print(f"🔹 [DEBUG] Message attendu contenant : '{expected_sender}', Message reçu : '{last_received_message}'")
-    expected_sender = "iot" if role == "vm" else "vm"
     if last_received_message and expected_sender not in last_received_message:
         print(f"\n🚨 [{role.upper()}] Problème détecté : Dernier message reçu non conforme.")
         send_discord_alert(f"🚨 **[{role.upper()}] Problème détecté !**\n📅 {now.strftime('%d/%m/%Y %H:%M:%S UTC')}\n❌ Message non reçu.")
