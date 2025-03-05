@@ -1,4 +1,5 @@
 import subprocess
+import threading
 import time
 import os
 import requests
@@ -23,6 +24,20 @@ if role not in ["iot", "vm"]:
     print("Rôle invalide. Utilisez 'iot' ou 'vm'.")
     exit()
 
+def start_coap_server():
+    """Démarre le serveur CoAP en arrière-plan si le rôle est 'vm'."""
+    try:
+        print("🟢 [VM] Démarrage du serveur CoAP...")
+        server_process = subprocess.Popen(["coap-server", "-v", "7"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        for line in server_process.stdout:
+            print(f"🔹 {line.decode().strip()}")
+    except Exception as e:
+        print(f"⚠️ Erreur lors du lancement du serveur CoAP : {e}")
+
+if role == "vm":
+    # Lancer le serveur CoAP dans un thread séparé
+    threading.Thread(target=start_coap_server, daemon=True).start()
+
 def send_discord_alert(message):
     """Envoie une alerte sur un canal Discord via un webhook."""
     if not DiscordWebhook:
@@ -44,6 +59,7 @@ def log_message(message):
 
 def coap_get():
     """Effectue une requête GET sur le serveur CoAP."""
+    error = 0
     try:
         cmd = ["coap-client", "-m", "get", f"{COAP_SERVER}/{RESOURCE}"]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
@@ -54,6 +70,14 @@ def coap_get():
             return None
     except Exception as e:
         print(f"⚠️ Exception GET : {e}")
+        if error > 10:
+            print("🚨 Trop d'erreurs GET, arrêt du script.")
+            send_discord_alert("🚨 **Trop d'erreurs GET, arrêt du script.**")
+            if role == "vm":
+                print("🔴 [VM] Arrêt du serveur CoAP...")
+                subprocess.run(["pkill", "coap-server"])
+            exit()
+        error += 1
         return None
 
 def coap_post(payload):
