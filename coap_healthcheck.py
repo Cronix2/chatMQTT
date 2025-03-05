@@ -49,7 +49,7 @@ class HealthCheckResource(resource.Resource):
 
     async def render_post(self, request):
         """Gérer les requêtes POST"""
-        self.latest_message = request.payload.decode('utf-8')
+        self.latest_message = "vm : " + request.payload.decode('utf-8')
         print(f"📩 [POST] Nouveau message reçu et enregistré : {self.latest_message}")
         return Message(payload=b"Message enregistre")
 
@@ -171,6 +171,7 @@ while True:
     if role == "iot" and minute % 2 == 1:
         msg = f"[from: iot] [{now.strftime('%d/%m/%Y %H:%M')}]"
         coap_post(msg)
+        time.sleep(1)
     
     last_received_message = coap_get()
     expected_sender = "iot" if role == "vm" else "vm"
