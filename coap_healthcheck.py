@@ -6,7 +6,7 @@ import requests
 import asyncio
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
-from aiocoap import *
+from aiocoap import Context, resource, Message
 import logging
 
 # Configurer les variables globales
@@ -49,7 +49,7 @@ class HealthCheckResource(resource.Resource):
     async def render_post(self, request):
         self.latest_message = request.payload.decode('utf-8')
         print(f"📩 [POST] Nouveau message reçu : {self.latest_message}")
-        return Message(payload=b"Message enregistré")
+        return Message(payload=b"Message enregistre")
 
 async def run_coap_server():
     """Lancer le serveur CoAP"""
