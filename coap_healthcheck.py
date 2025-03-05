@@ -90,7 +90,9 @@ def coap_get():
         cmd = ["coap-client", "-m", "get", f"{COAP_SERVER}/{RESOURCE}"]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
         if result.returncode == 0:
-            return result.stdout.strip()
+            response = result.stdout.strip()
+            print(f"🔹 [DEBUG] Réponse GET reçue : {response}")  # <-- Ajout pour voir la réponse
+            return response
         else:
             print(f"⚠️ Erreur GET : {result.stderr}")
             return None
@@ -160,6 +162,7 @@ while True:
         coap_post(msg)
     
     last_received_message = coap_get()
+    print(f"🔹 [DEBUG] Message attendu contenant : '{expected_sender}', Message reçu : '{last_received_message}'")
     expected_sender = "iot" if role == "vm" else "vm"
     if last_received_message and expected_sender not in last_received_message:
         print(f"\n🚨 [{role.upper()}] Problème détecté : Dernier message reçu non conforme.")
