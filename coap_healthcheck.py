@@ -51,7 +51,7 @@ class HealthCheckResource(resource.Resource):
         """Gérer les requêtes POST"""
         self.latest_message = request.payload.decode('utf-8')
         print(f"📩 [POST] Nouveau message reçu et enregistré : {self.latest_message}")
-        return Message(payload=b"Message enregistré")
+        return Message(payload=b"Message enregistre")
 
 async def run_coap_server():
     """Lancer le serveur CoAP"""
